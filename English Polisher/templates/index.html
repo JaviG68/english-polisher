@@ -4,51 +4,918 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>English Polisher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; }
-      textarea { width: 100%; height: 160px; }
-      pre { background: #f6f8fa; padding: 1rem; }
-      .correction { margin-bottom: .5rem; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg-start: #0f0c29;
+        --bg-mid: #302b63;
+        --bg-end: #24243e;
+        --glass-bg: rgba(255, 255, 255, 0.08);
+        --glass-border: rgba(255, 255, 255, 0.15);
+        --glass-shadow: rgba(0, 0, 0, 0.3);
+        --text: #f1f1f1;
+        --text-secondary: #a0a0b0;
+        --accent: #818cf8;
+        --accent-hover: #6366f1;
+        --accent-glow: rgba(129, 140, 248, 0.3);
+        --success: #34d399;
+        --success-glow: rgba(52, 211, 153, 0.2);
+        --warning: #fbbf24;
+        --warning-glow: rgba(251, 191, 36, 0.2);
+        --danger: #f87171;
+        --radius: 16px;
+        --radius-sm: 10px;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: linear-gradient(135deg, var(--bg-start), var(--bg-mid), var(--bg-end));
+        color: var(--text);
+        line-height: 1.6;
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      body::before {
+        content: '';
+        position: fixed;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle at 20% 80%, rgba(129, 140, 248, 0.08) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 20%, rgba(52, 211, 153, 0.06) 0%, transparent 50%),
+                    radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.04) 0%, transparent 50%);
+        animation: bgFloat 20s ease-in-out infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      @keyframes bgFloat {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(2%, 2%) rotate(1deg); }
+        66% { transform: translate(-1%, -2%) rotate(-1deg); }
+      }
+
+      .container {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Header */
+      .header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+      }
+
+      .header h1 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #fff, var(--accent));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .header p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        font-weight: 400;
+      }
+
+      /* Glass card */
+      .glass {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius);
+        box-shadow: 0 8px 32px var(--glass-shadow);
+      }
+
+      /* Controls bar */
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        align-items: center;
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .control-label {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+      }
+
+      select, .toggle-btn {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.8rem;
+        color: var(--text);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      select:hover, .toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--accent);
+      }
+
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-glow);
+      }
+
+      .toggle-group {
+        display: flex;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--glass-border);
+      }
+
+      .toggle-btn {
+        border: none;
+        border-radius: 0;
+        padding: 0.5rem 0.85rem;
+        font-weight: 500;
+      }
+
+      .toggle-btn.active {
+        background: var(--accent);
+        color: white;
+      }
+
+      .lang-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: var(--success-glow);
+        color: var(--success);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+      }
+
+      .lang-badge.detected::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--success);
+        animation: pulse 2s infinite;
+      }
+
+      .lang-badge.warning {
+        background: var(--warning-glow);
+        color: var(--warning);
+        border-color: rgba(251, 191, 36, 0.3);
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+
+      /* Input Section */
+      .input-section {
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        transition: box-shadow 0.3s ease, border-color 0.3s ease;
+      }
+
+      .input-section:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 8px 32px var(--glass-shadow), 0 0 0 3px var(--accent-glow);
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 140px;
+        border: none;
+        outline: none;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9rem;
+        line-height: 1.7;
+        color: var(--text);
+        resize: vertical;
+        background: transparent;
+      }
+
+      textarea::placeholder {
+        color: rgba(255, 255, 255, 0.25);
+      }
+
+      .input-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .char-count {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      /* Button */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1.5rem;
+        background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 15px var(--accent-glow);
+      }
+
+      .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px var(--accent-glow);
+      }
+
+      .btn:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: none;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: none;
+      }
+
+      .btn-icon {
+        padding: 0.5rem;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .btn-icon:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: none;
+      }
+
+      /* Results */
+      .results {
+        display: none;
+        animation: fadeIn 0.4s ease;
+      }
+
+      .results.visible {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .result-card {
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+      }
+
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .result-header h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .result-header h2 .icon {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 5px;
+        font-size: 0.65rem;
+      }
+
+      .icon-improved {
+        background: var(--accent-glow);
+        color: var(--accent);
+      }
+
+      .icon-corrections {
+        background: var(--success-glow);
+        color: var(--success);
+      }
+
+      .improved-text {
+        font-size: 0.9rem;
+        line-height: 1.8;
+        color: var(--text);
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      /* Corrections */
+      .correction-item {
+        padding: 0.85rem;
+        border-radius: var(--radius-sm);
+        margin-bottom: 0.65rem;
+        border-left: 3px solid;
+        transition: background 0.15s ease;
+      }
+
+      .correction-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .correction-item.grammar {
+        border-left-color: var(--accent);
+        background: rgba(129, 140, 248, 0.08);
+      }
+
+      .correction-item.style {
+        border-left-color: var(--warning);
+        background: rgba(251, 191, 36, 0.06);
+      }
+
+      .correction-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .correction-type {
+        display: inline-block;
+        font-size: 0.6rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.2rem 0.45rem;
+        border-radius: 4px;
+      }
+
+      .correction-item.grammar .correction-type {
+        background: var(--accent);
+        color: white;
+      }
+
+      .correction-item.style .correction-type {
+        background: var(--warning);
+        color: #1a1a2e;
+      }
+
+      .correction-orig {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+        text-decoration: line-through;
+        opacity: 0.7;
+      }
+
+      .correction-arrow {
+        color: var(--accent);
+        margin: 0 0.35rem;
+      }
+
+      .correction-suggestion {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text);
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .correction-explanation {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-top: 0.4rem;
+      }
+
+      /* Loading */
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 2.5rem;
+      }
+
+      .loading.visible {
+        display: block;
+      }
+
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 1rem;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .loading p {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+
+      /* History */
+      .history-section {
+        margin-top: 2rem;
+      }
+
+      .history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .history-header h3 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary);
+      }
+
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .history-item {
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .history-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--accent);
+      }
+
+      .history-item-text {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 85%;
+      }
+
+      .history-item-date {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+        opacity: 0.6;
+      }
+
+      .history-empty {
+        text-align: center;
+        padding: 1.5rem;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        opacity: 0.6;
+      }
+
+      .btn-clear-history {
+        font-size: 0.7rem;
+        padding: 0.35rem 0.65rem;
+        background: transparent;
+        border: 1px solid rgba(248, 113, 113, 0.3);
+        color: var(--danger);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .btn-clear-history:hover {
+        background: rgba(248, 113, 113, 0.1);
+      }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        padding: 0.75rem 1.25rem;
+        background: rgba(52, 211, 153, 0.15);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        border-radius: 8px;
+        color: var(--success);
+        font-size: 0.8rem;
+        font-weight: 500;
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 100;
+      }
+
+      .toast.visible {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+
+      /* Responsive */
+      @media (max-width: 640px) {
+        .container { padding: 2rem 1rem; }
+        .header h1 { font-size: 1.75rem; }
+        .controls { flex-direction: column; align-items: flex-start; }
+        .result-card { padding: 1rem; }
+      }
     </style>
   </head>
   <body>
-    <h1>English Polisher</h1>
-    <p>Paste your English text and get a corrected, more natural version with explanations in Spanish.</p>
-    <form id="form">
-      <textarea id="text" name="text" placeholder="Type or paste English text here..."></textarea>
-      <br>
-      <button type="submit">Polish</button>
-    </form>
+    <div class="container">
+      <div class="header">
+        <h1>English Polisher</h1>
+        <p>Refine your English text with natural corrections and Spanish explanations.</p>
+      </div>
 
-    <h2>Result</h2>
-    <div id="result">
-      <h3>Improved text</h3>
-      <pre id="improved"></pre>
-      <h3>Corrections</h3>
-      <div id="corrections"></div>
+      <div class="controls">
+        <div class="control-group">
+          <span class="control-label">Mode:</span>
+          <div class="toggle-group">
+            <button class="toggle-btn active" data-mode="rules">Rules</button>
+            <button class="toggle-btn" data-mode="llm">LLM</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <span class="control-label">Tone:</span>
+          <select id="toneSelect">
+            <option value="casual">Casual</option>
+            <option value="neutral" selected>Neutral</option>
+            <option value="formal">Formal</option>
+          </select>
+        </div>
+        <div id="langBadge" class="lang-badge" style="display:none;"></div>
+      </div>
+
+      <div class="input-section glass">
+        <textarea id="text" placeholder="Paste or type your English text here..."></textarea>
+        <div class="input-footer">
+          <span class="char-count"><span id="charCount">0</span> chars</span>
+          <button class="btn" id="polishBtn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Polish
+          </button>
+        </div>
+      </div>
+
+      <div class="loading glass" id="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Analyzing your text...</p>
+      </div>
+
+      <div class="results" id="results">
+        <div class="result-card glass">
+          <div class="result-header">
+            <h2><span class="icon icon-improved">✦</span> Improved version</h2>
+            <button class="btn btn-icon" id="copyBtn" title="Copy to clipboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div class="improved-text" id="improved"></div>
+        </div>
+
+        <div class="result-card glass">
+          <div class="result-header">
+            <h2><span class="icon icon-corrections">✓</span> Corrections <span id="correctionCount" style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary)"></span></h2>
+          </div>
+          <div id="corrections"></div>
+        </div>
+      </div>
+
+      <div class="history-section">
+        <div class="history-header">
+          <h3>History</h3>
+          <button class="btn-clear-history" id="clearHistoryBtn" style="display:none;">Clear all</button>
+        </div>
+        <div class="history-list glass" id="historyList">
+          <div class="history-empty">No history yet</div>
+        </div>
+      </div>
     </div>
 
+    <div class="toast" id="toast">Copied to clipboard!</div>
+
     <script>
-      const form = document.getElementById('form')
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault()
-        const text = document.getElementById('text').value
-        const res = await fetch('/api/polish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text })
-        })
-        const data = await res.json()
-        document.getElementById('improved').textContent = data.improved || ''
-        const container = document.getElementById('corrections')
-        container.innerHTML = ''
-        (data.corrections || []).forEach(c => {
-          const d = document.createElement('div')
-          d.className = 'correction'
-          d.innerHTML = `<strong>Orig:</strong> ${c.orig} <br><strong>Suggestion:</strong> ${c.suggestion} <br><strong>Explicación (ES):</strong> ${c.explanation_es}`
-          container.appendChild(d)
+      const textEl = document.getElementById('text')
+      const charCountEl = document.getElementById('charCount')
+      const polishBtn = document.getElementById('polishBtn')
+      const loadingEl = document.getElementById('loading')
+      const loadingTextEl = document.getElementById('loadingText')
+      const resultsEl = document.getElementById('results')
+      const improvedEl = document.getElementById('improved')
+      const correctionsEl = document.getElementById('corrections')
+      const correctionCountEl = document.getElementById('correctionCount')
+      const copyBtn = document.getElementById('copyBtn')
+      const toneSelect = document.getElementById('toneSelect')
+      const langBadge = document.getElementById('langBadge')
+      const historyListEl = document.getElementById('historyList')
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn')
+      const toastEl = document.getElementById('toast')
+
+      let currentMode = 'rules'
+      let improvedText = ''
+
+      // Mode toggle
+      document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'))
+          btn.classList.add('active')
+          currentMode = btn.dataset.mode
         })
       })
+
+      // Language detection (simple heuristic)
+      function detectLanguage(text) {
+        const englishWords = new Set(['the','be','to','of','and','a','in','that','have','i','it','for','not','on','with','he','as','you','do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my','one','all','would','there','their','what','so','up','out','if','about','who','get','which','go','me','when','make','can','like','time','no','just','him','know','take','people','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new','want','because','any','these','give','day','most','us'])
+        const spanishWords = new Set(['el','la','de','que','y','en','un','ser','se','no','haber','por','con','su','para','como','estar','tener','le','lo','todo','pero','mas','hacer','o','poder','decir','este','ir','otro','ese','la','si','me','ya','dar','cuando','muy','sin','vez','mucho','saber','si','sobre','mi','uno','hasta','donde','aqui','bien','tiempo','mismo','modo','algo','nada','cada','vida','parte','despues','siempre','dia','tan','tanto','cosa','hombre','mujer','gente','forma','caso','punto','casa','campo','ciudad','gobierno','guerra','hijo','padre','madre','nombre','agua','tierra','mano','ojos','cabeza','cuerpo','corazon','amor','muerte','dios','rey','senor','caballero','trabajo','dinero','libro','palabra','historia','ley','justicia','verdad','razon','fin'])
+        
+        const words = text.toLowerCase().match(/\b[a-z]+\b/g) || []
+        if (words.length === 0) return null
+        
+        let enCount = 0, esCount = 0
+        words.forEach(w => {
+          if (englishWords.has(w)) enCount++
+          if (spanishWords.has(w)) esCount++
+        })
+        
+        const enRatio = enCount / words.length
+        const esRatio = esCount / words.length
+        
+        if (enRatio > esRatio && enRatio > 0.15) return { lang: 'en', confidence: enRatio }
+        if (esRatio > enRatio && esRatio > 0.15) return { lang: 'es', confidence: esRatio }
+        return { lang: 'unknown', confidence: 0 }
+      }
+
+      textEl.addEventListener('input', () => {
+        const len = textEl.value.length
+        charCountEl.textContent = len
+        polishBtn.disabled = textEl.value.trim().length === 0
+        
+        // Detect language
+        const detection = detectLanguage(textEl.value)
+        if (detection && detection.lang !== 'unknown' && detection.confidence > 0.1) {
+          langBadge.style.display = 'inline-flex'
+          if (detection.lang === 'en') {
+            langBadge.className = 'lang-badge detected'
+            langBadge.textContent = 'English detected'
+          } else {
+            langBadge.className = 'lang-badge warning detected'
+            langBadge.textContent = 'Spanish detected - text should be in English'
+          }
+        } else {
+          langBadge.style.display = 'none'
+        }
+      })
+
+      textEl.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault()
+          if (textEl.value.trim()) polish()
+        }
+      })
+
+      // Copy to clipboard
+      copyBtn.addEventListener('click', async () => {
+        if (!improvedText) return
+        try {
+          await navigator.clipboard.writeText(improvedText)
+          showToast('Copied to clipboard!')
+        } catch {
+          showToast('Failed to copy')
+        }
+      })
+
+      function showToast(msg) {
+        toastEl.textContent = msg
+        toastEl.classList.add('visible')
+        setTimeout(() => toastEl.classList.remove('visible'), 2000)
+      }
+
+      // History
+      function getHistory() {
+        try {
+          return JSON.parse(localStorage.getItem('polisher_history') || '[]')
+        } catch {
+          return []
+        }
+      }
+
+      function saveToHistory(original, improved, corrections) {
+        const history = getHistory()
+        history.unshift({
+          original,
+          improved,
+          corrections,
+          timestamp: Date.now(),
+          tone: toneSelect.value,
+          mode: currentMode
+        })
+        if (history.length > 20) history.pop()
+        localStorage.setItem('polisher_history', JSON.stringify(history))
+        renderHistory()
+      }
+
+      function renderHistory() {
+        const history = getHistory()
+        clearHistoryBtn.style.display = history.length ? 'inline-block' : 'none'
+        
+        if (!history.length) {
+          historyListEl.innerHTML = '<div class="history-empty">No history yet</div>'
+          return
+        }
+        
+        historyListEl.innerHTML = history.map((item, i) => {
+          const date = new Date(item.timestamp)
+          const dateStr = date.toLocaleDateString('en', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+          return `<div class="history-item glass" data-index="${i}">
+            <span class="history-item-text">${escapeHtml(item.original.substring(0, 80))}${item.original.length > 80 ? '...' : ''}</span>
+            <span class="history-item-date">${dateStr}</span>
+          </div>`
+        }).join('')
+        
+        historyListEl.querySelectorAll('.history-item').forEach(el => {
+          el.addEventListener('click', () => {
+            const item = history[el.dataset.index]
+            textEl.value = item.original
+            textEl.dispatchEvent(new Event('input'))
+            improvedEl.textContent = item.improved
+            improvedText = item.improved
+            correctionsEl.innerHTML = ''
+            if (item.corrections && item.corrections.length) {
+              correctionCountEl.textContent = item.corrections.length + ' found'
+              item.corrections.forEach(c => {
+                const div = document.createElement('div')
+                div.className = 'correction-item ' + c.type
+                div.innerHTML = `
+                  <div class="correction-top">
+                    <span class="correction-type">${c.type}</span>
+                  </div>
+                  <div>
+                    <span class="correction-orig">${escapeHtml(c.orig)}</span>
+                    <span class="correction-arrow">→</span>
+                    <span class="correction-suggestion">${escapeHtml(c.suggestion)}</span>
+                  </div>
+                  <div class="correction-explanation">${escapeHtml(c.explanation_es)}</div>
+                `
+                correctionsEl.appendChild(div)
+              })
+            } else {
+              correctionCountEl.textContent = 'None'
+            }
+            resultsEl.classList.add('visible')
+          })
+        })
+      }
+
+      clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem('polisher_history')
+        renderHistory()
+      })
+
+      async function polish() {
+        const text = textEl.value.trim()
+        if (!text) return
+
+        polishBtn.disabled = true
+        loadingEl.classList.add('visible')
+        resultsEl.classList.remove('visible')
+        loadingTextEl.textContent = currentMode === 'llm' ? 'Processing with AI...' : 'Analyzing your text...'
+
+        try {
+          const res = await fetch('/api/polish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, mode: currentMode, tone: toneSelect.value })
+          })
+          const data = await res.json()
+
+          if (data.error) {
+            improvedEl.textContent = data.error
+            correctionsEl.innerHTML = ''
+            correctionCountEl.textContent = ''
+          } else {
+            improvedText = data.improved || 'No improvements found.'
+            improvedEl.textContent = improvedText
+            correctionsEl.innerHTML = ''
+
+            if (data.corrections && data.corrections.length > 0) {
+              correctionCountEl.textContent = data.corrections.length + ' found'
+              data.corrections.forEach(c => {
+                const div = document.createElement('div')
+                div.className = 'correction-item ' + c.type
+                div.innerHTML = `
+                  <div class="correction-top">
+                    <span class="correction-type">${c.type}</span>
+                  </div>
+                  <div>
+                    <span class="correction-orig">${escapeHtml(c.orig)}</span>
+                    <span class="correction-arrow">→</span>
+                    <span class="correction-suggestion">${escapeHtml(c.suggestion)}</span>
+                  </div>
+                  <div class="correction-explanation">${escapeHtml(c.explanation_es)}</div>
+                `
+                correctionsEl.appendChild(div)
+              })
+            } else {
+              correctionCountEl.textContent = 'None'
+            }
+
+            saveToHistory(text, improvedText, data.corrections || [])
+          }
+
+          resultsEl.classList.add('visible')
+        } catch (err) {
+          improvedEl.textContent = 'Error processing your text. Please try again.'
+          resultsEl.classList.add('visible')
+        } finally {
+          loadingEl.classList.remove('visible')
+          polishBtn.disabled = false
+        }
+      }
+
+      polishBtn.addEventListener('click', polish)
+
+      function escapeHtml(str) {
+        const div = document.createElement('div')
+        div.textContent = str
+        return div.innerHTML
+      }
+
+      // Init
+      renderHistory()
     </script>
   </body>
 </html>

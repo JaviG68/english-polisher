@@ -1,7 +1,7 @@
-from flask import Flask, render_template, request, jsonify
-from polisher import polish
+from flask import Flask, request, jsonify, render_template
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
 
 @app.route('/')
 def index():
@@ -15,8 +15,6 @@ def api_polish():
     tone = data.get('tone', 'neutral')
     if not isinstance(text, str):
         return jsonify({'error': 'text must be a string'}), 400
+    from polisher import polish
     result = polish(text, mode=mode, tone=tone)
     return jsonify(result)
-
-# Vercel handler
-app = app
