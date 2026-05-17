@@ -31,6 +31,8 @@
         --radius-sm: 10px;
       }
 
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         background: linear-gradient(135deg, var(--bg-start), var(--bg-mid), var(--bg-end));
@@ -70,7 +72,6 @@
         z-index: 1;
       }
 
-      /* Header */
       .header {
         text-align: center;
         margin-bottom: 2.5rem;
@@ -90,10 +91,8 @@
       .header p {
         color: var(--text-secondary);
         font-size: 0.95rem;
-        font-weight: 400;
       }
 
-      /* Glass card */
       .glass {
         background: var(--glass-bg);
         backdrop-filter: blur(20px);
@@ -103,7 +102,6 @@
         box-shadow: 0 8px 32px var(--glass-shadow);
       }
 
-      /* Controls bar */
       .controls {
         display: flex;
         gap: 0.75rem;
@@ -201,7 +199,6 @@
         50% { opacity: 0.4; }
       }
 
-      /* Input Section */
       .input-section {
         padding: 1.25rem;
         margin-bottom: 1.5rem;
@@ -245,7 +242,6 @@
         font-family: 'JetBrains Mono', monospace;
       }
 
-      /* Button */
       .btn {
         display: inline-flex;
         align-items: center;
@@ -304,7 +300,6 @@
         transform: none;
       }
 
-      /* Results */
       .results {
         display: none;
         animation: fadeIn 0.4s ease;
@@ -374,7 +369,6 @@
         border: 1px solid rgba(255, 255, 255, 0.06);
       }
 
-      /* Corrections */
       .correction-item {
         padding: 0.85rem;
         border-radius: var(--radius-sm);
@@ -451,7 +445,6 @@
         margin-top: 0.4rem;
       }
 
-      /* Loading */
       .loading {
         display: none;
         text-align: center;
@@ -481,7 +474,6 @@
         font-size: 0.85rem;
       }
 
-      /* History */
       .history-section {
         margin-top: 2rem;
       }
@@ -536,6 +528,8 @@
         color: var(--text-secondary);
         font-family: 'JetBrains Mono', monospace;
         opacity: 0.6;
+        flex-shrink: 0;
+        margin-left: 0.5rem;
       }
 
       .history-empty {
@@ -561,7 +555,6 @@
         background: rgba(248, 113, 113, 0.1);
       }
 
-      /* Toast */
       .toast {
         position: fixed;
         bottom: 2rem;
@@ -585,7 +578,43 @@
         opacity: 1;
       }
 
-      /* Responsive */
+      .settings-row {
+        display: none;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(255,255,255,0.04);
+        border-radius: 8px;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .settings-row.visible {
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      .settings-row input {
+        flex: 1;
+        min-width: 180px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--glass-border);
+        border-radius: 6px;
+        padding: 0.4rem 0.65rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        color: var(--text);
+        outline: none;
+      }
+
+      .settings-row input:focus {
+        border-color: var(--accent);
+      }
+
+      .settings-row label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+      }
+
       @media (max-width: 640px) {
         .container { padding: 2rem 1rem; }
         .header h1 { font-size: 1.75rem; }
@@ -606,7 +635,8 @@
           <span class="control-label">Mode:</span>
           <div class="toggle-group">
             <button class="toggle-btn active" data-mode="rules">Rules</button>
-            <button class="toggle-btn" data-mode="llm">LLM</button>
+            <button class="toggle-btn" data-mode="ollama">Ollama</button>
+            <button class="toggle-btn" data-mode="gemini">Gemini</button>
           </div>
         </div>
         <div class="control-group">
@@ -618,6 +648,18 @@
           </select>
         </div>
         <div id="langBadge" class="lang-badge" style="display:none;"></div>
+      </div>
+
+      <div id="ollamaSettings" class="settings-row">
+        <label>Ollama URL:</label>
+        <input type="text" id="ollamaUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
+        <label>Model:</label>
+        <input type="text" id="ollamaModel" value="gemma3" placeholder="gemma3">
+      </div>
+
+      <div id="geminiSettings" class="settings-row">
+        <label>Gemini API Key:</label>
+        <input type="password" id="geminiKey" placeholder="Enter your Gemini API key">
       </div>
 
       <div class="input-section glass">
@@ -684,47 +726,92 @@
       const historyListEl = document.getElementById('historyList')
       const clearHistoryBtn = document.getElementById('clearHistoryBtn')
       const toastEl = document.getElementById('toast')
+      const ollamaSettings = document.getElementById('ollamaSettings')
+      const geminiSettings = document.getElementById('geminiSettings')
+      const ollamaUrl = document.getElementById('ollamaUrl')
+      const ollamaModel = document.getElementById('ollamaModel')
+      const geminiKey = document.getElementById('geminiKey')
 
       let currentMode = 'rules'
       let improvedText = ''
 
-      // Mode toggle
+      const SYSTEM_PROMPTS = {
+        casual: `You are an expert English linguist and editor. Your task is to analyze, correct and improve the English text provided by the user, focusing on making it more natural and colloquial.
+
+Rules for casual tone:
+- Use contractions frequently
+- Incorporate slang or colloquial expressions when appropriate
+- Use varied sentence structures for rhythm
+- Add specific details that show authenticity
+- The tone should feel conversational and close`,
+        neutral: `You are an expert English linguist and editor. Your task is to analyze, correct and improve the English text provided by the user, focusing on making it more natural.
+
+Rules for neutral tone:
+- Balance between formal and informal
+- Use contractions when natural
+- Avoid overly technical or overly colloquial language
+- Keep a clear, direct and friendly tone`,
+        formal: `You are an expert English linguist and editor. Your task is to analyze, correct and improve the English text provided by the user, focusing on a formal and professional register.
+
+Rules for formal tone:
+- Avoid contractions
+- Use precise and sophisticated vocabulary
+- Complete and correct grammatical structures
+- Maintain a professional and respectful tone`
+      }
+
+      const USER_PROMPT_SUFFIX = `
+
+Output ONLY valid JSON with this exact format, no markdown, no explanation:
+{
+  "original": "original text here",
+  "improved": "improved text here",
+  "corrections": [
+    {
+      "orig": "original text",
+      "suggestion": "corrected text",
+      "explanation_es": "explanation in Spanish",
+      "type": "grammar"
+    }
+  ]
+}
+
+Rules:
+- Explain grammatical corrections in Spanish
+- Avoid bold in the improved text
+- Maintain the original meaning
+- Words to avoid in improved text: "delve", "dive into", "arguably", "certainly", "consequently", "furthermore", "however", "indeed", "moreover", "nevertheless", "therefore", "undoubtedly", "adept", "commendable", "dynamic", "efficient", "ever-evolving", "exciting", "exemplary", "innovative", "invaluable", "robust", "seamless", "synergistic", "thought-provoking", "in alignment with", "leverage", "embark", "facilitate", "maximize", "highlights", "utilize", "a testament to", "in conclusion", "in summary", "it is important to note", "worth mentioning", "on the contrary", "this is not an exhaustive list", "provide actionable insights through deep analysis", "drive informed decisions", "harness ideas".`
+
       document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'))
           btn.classList.add('active')
           currentMode = btn.dataset.mode
+          ollamaSettings.classList.toggle('visible', currentMode === 'ollama')
+          geminiSettings.classList.toggle('visible', currentMode === 'gemini')
         })
       })
 
-      // Language detection (simple heuristic)
       function detectLanguage(text) {
         const englishWords = new Set(['the','be','to','of','and','a','in','that','have','i','it','for','not','on','with','he','as','you','do','at','this','but','his','by','from','they','we','say','her','she','or','an','will','my','one','all','would','there','their','what','so','up','out','if','about','who','get','which','go','me','when','make','can','like','time','no','just','him','know','take','people','into','year','your','good','some','could','them','see','other','than','then','now','look','only','come','its','over','think','also','back','after','use','two','how','our','work','first','well','way','even','new','want','because','any','these','give','day','most','us'])
-        const spanishWords = new Set(['el','la','de','que','y','en','un','ser','se','no','haber','por','con','su','para','como','estar','tener','le','lo','todo','pero','mas','hacer','o','poder','decir','este','ir','otro','ese','la','si','me','ya','dar','cuando','muy','sin','vez','mucho','saber','si','sobre','mi','uno','hasta','donde','aqui','bien','tiempo','mismo','modo','algo','nada','cada','vida','parte','despues','siempre','dia','tan','tanto','cosa','hombre','mujer','gente','forma','caso','punto','casa','campo','ciudad','gobierno','guerra','hijo','padre','madre','nombre','agua','tierra','mano','ojos','cabeza','cuerpo','corazon','amor','muerte','dios','rey','senor','caballero','trabajo','dinero','libro','palabra','historia','ley','justicia','verdad','razon','fin'])
-        
+        const spanishWords = new Set(['el','la','de','que','y','en','un','ser','se','no','haber','por','con','su','para','como','estar','tener','le','lo','todo','pero','mas','hacer','o','poder','decir','este','ir','otro','ese','si','me','ya','dar','cuando','muy','sin','vez','mucho','saber','sobre','mi','uno','hasta','donde','aqui','bien','tiempo','mismo','modo','algo','nada','cada','vida','parte','despues','siempre','dia','tan','tanto','cosa','hombre','mujer','gente','forma','caso','punto','casa','campo','ciudad','gobierno','guerra','hijo','padre','madre','nombre','agua','tierra','mano','ojos','cabeza','cuerpo','corazon','amor','muerte','dios','rey','senor','caballero','trabajo','dinero','libro','palabra','historia','ley','justicia','verdad','razon','fin'])
         const words = text.toLowerCase().match(/\b[a-z]+\b/g) || []
         if (words.length === 0) return null
-        
         let enCount = 0, esCount = 0
         words.forEach(w => {
           if (englishWords.has(w)) enCount++
           if (spanishWords.has(w)) esCount++
         })
-        
         const enRatio = enCount / words.length
         const esRatio = esCount / words.length
-        
         if (enRatio > esRatio && enRatio > 0.15) return { lang: 'en', confidence: enRatio }
         if (esRatio > enRatio && esRatio > 0.15) return { lang: 'es', confidence: esRatio }
         return { lang: 'unknown', confidence: 0 }
       }
 
       textEl.addEventListener('input', () => {
-        const len = textEl.value.length
-        charCountEl.textContent = len
+        charCountEl.textContent = textEl.value.length
         polishBtn.disabled = textEl.value.trim().length === 0
-        
-        // Detect language
         const detection = detectLanguage(textEl.value)
         if (detection && detection.lang !== 'unknown' && detection.confidence > 0.1) {
           langBadge.style.display = 'inline-flex'
@@ -747,7 +834,6 @@
         }
       })
 
-      // Copy to clipboard
       copyBtn.addEventListener('click', async () => {
         if (!improvedText) return
         try {
@@ -764,25 +850,13 @@
         setTimeout(() => toastEl.classList.remove('visible'), 2000)
       }
 
-      // History
       function getHistory() {
-        try {
-          return JSON.parse(localStorage.getItem('polisher_history') || '[]')
-        } catch {
-          return []
-        }
+        try { return JSON.parse(localStorage.getItem('polisher_history') || '[]') } catch { return [] }
       }
 
       function saveToHistory(original, improved, corrections) {
         const history = getHistory()
-        history.unshift({
-          original,
-          improved,
-          corrections,
-          timestamp: Date.now(),
-          tone: toneSelect.value,
-          mode: currentMode
-        })
+        history.unshift({ original, improved, corrections, timestamp: Date.now(), tone: toneSelect.value, mode: currentMode })
         if (history.length > 20) history.pop()
         localStorage.setItem('polisher_history', JSON.stringify(history))
         renderHistory()
@@ -791,12 +865,10 @@
       function renderHistory() {
         const history = getHistory()
         clearHistoryBtn.style.display = history.length ? 'inline-block' : 'none'
-        
         if (!history.length) {
           historyListEl.innerHTML = '<div class="history-empty">No history yet</div>'
           return
         }
-        
         historyListEl.innerHTML = history.map((item, i) => {
           const date = new Date(item.timestamp)
           const dateStr = date.toLocaleDateString('en', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
@@ -805,7 +877,6 @@
             <span class="history-item-date">${dateStr}</span>
           </div>`
         }).join('')
-        
         historyListEl.querySelectorAll('.history-item').forEach(el => {
           el.addEventListener('click', () => {
             const item = history[el.dataset.index]
@@ -816,22 +887,7 @@
             correctionsEl.innerHTML = ''
             if (item.corrections && item.corrections.length) {
               correctionCountEl.textContent = item.corrections.length + ' found'
-              item.corrections.forEach(c => {
-                const div = document.createElement('div')
-                div.className = 'correction-item ' + c.type
-                div.innerHTML = `
-                  <div class="correction-top">
-                    <span class="correction-type">${c.type}</span>
-                  </div>
-                  <div>
-                    <span class="correction-orig">${escapeHtml(c.orig)}</span>
-                    <span class="correction-arrow">→</span>
-                    <span class="correction-suggestion">${escapeHtml(c.suggestion)}</span>
-                  </div>
-                  <div class="correction-explanation">${escapeHtml(c.explanation_es)}</div>
-                `
-                correctionsEl.appendChild(div)
-              })
+              item.corrections.forEach(c => renderCorrection(c))
             } else {
               correctionCountEl.textContent = 'None'
             }
@@ -845,6 +901,23 @@
         renderHistory()
       })
 
+      function renderCorrection(c) {
+        const div = document.createElement('div')
+        div.className = 'correction-item ' + c.type
+        div.innerHTML = `
+          <div class="correction-top">
+            <span class="correction-type">${c.type}</span>
+          </div>
+          <div>
+            <span class="correction-orig">${escapeHtml(c.orig)}</span>
+            <span class="correction-arrow">→</span>
+            <span class="correction-suggestion">${escapeHtml(c.suggestion)}</span>
+          </div>
+          <div class="correction-explanation">${escapeHtml(c.explanation_es)}</div>
+        `
+        correctionsEl.appendChild(div)
+      }
+
       async function polish() {
         const text = textEl.value.trim()
         if (!text) return
@@ -852,53 +925,39 @@
         polishBtn.disabled = true
         loadingEl.classList.add('visible')
         resultsEl.classList.remove('visible')
-        loadingTextEl.textContent = currentMode === 'llm' ? 'Processing with AI...' : 'Analyzing your text...'
 
+        let result
         try {
-          const res = await fetch('/api/polish', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, mode: currentMode, tone: toneSelect.value })
-          })
-          const data = await res.json()
+          if (currentMode === 'ollama') {
+            loadingTextEl.textContent = 'Processing with Ollama...'
+            result = await polishOllama(text)
+          } else if (currentMode === 'gemini') {
+            loadingTextEl.textContent = 'Processing with Gemini...'
+            result = await polishGemini(text)
+          } else {
+            loadingTextEl.textContent = 'Analyzing your text...'
+            result = polishRules(text)
+          }
 
-          if (data.error) {
-            improvedEl.textContent = data.error
+          if (result.error) {
+            improvedEl.textContent = result.error
             correctionsEl.innerHTML = ''
             correctionCountEl.textContent = ''
           } else {
-            improvedText = data.improved || 'No improvements found.'
+            improvedText = result.improved || 'No improvements found.'
             improvedEl.textContent = improvedText
             correctionsEl.innerHTML = ''
-
-            if (data.corrections && data.corrections.length > 0) {
-              correctionCountEl.textContent = data.corrections.length + ' found'
-              data.corrections.forEach(c => {
-                const div = document.createElement('div')
-                div.className = 'correction-item ' + c.type
-                div.innerHTML = `
-                  <div class="correction-top">
-                    <span class="correction-type">${c.type}</span>
-                  </div>
-                  <div>
-                    <span class="correction-orig">${escapeHtml(c.orig)}</span>
-                    <span class="correction-arrow">→</span>
-                    <span class="correction-suggestion">${escapeHtml(c.suggestion)}</span>
-                  </div>
-                  <div class="correction-explanation">${escapeHtml(c.explanation_es)}</div>
-                `
-                correctionsEl.appendChild(div)
-              })
+            if (result.corrections && result.corrections.length > 0) {
+              correctionCountEl.textContent = result.corrections.length + ' found'
+              result.corrections.forEach(c => renderCorrection(c))
             } else {
               correctionCountEl.textContent = 'None'
             }
-
-            saveToHistory(text, improvedText, data.corrections || [])
+            saveToHistory(text, improvedText, result.corrections || [])
           }
-
           resultsEl.classList.add('visible')
         } catch (err) {
-          improvedEl.textContent = 'Error processing your text. Please try again.'
+          improvedEl.textContent = 'Error: ' + err.message
           resultsEl.classList.add('visible')
         } finally {
           loadingEl.classList.remove('visible')
@@ -914,7 +973,135 @@
         return div.innerHTML
       }
 
-      // Init
+      // Rules engine (port from Python)
+      function polishRules(text) {
+        const corrections = []
+        let improved = text.trim()
+
+        const commonSingulars = { informations: 'information', advices: 'advice', furnitures: 'furniture' }
+        const contractions = { "I am": "I'm", "I will": "I'll", "do not": "don't", "does not": "doesn't", "did not": "didn't", "we are": "we're", "they are": "they're" }
+
+        improved = improved.replace(/\bi\b/g, (m) => {
+          if (m === 'i') {
+            corrections.push({ orig: 'i (lowercase)', suggestion: 'I (uppercase)', explanation_es: "La primera persona singular debe ser 'I' en mayúscula.", type: 'grammar' })
+            return 'I'
+          }
+          return m
+        })
+
+        for (const [wrong, right] of Object.entries(commonSingulars)) {
+          if (improved.includes(wrong)) {
+            corrections.push({ orig: wrong, suggestion: right, explanation_es: `'${wrong}' is not correct in English; use '${right}' as uncountable.`, type: 'grammar' })
+            improved = improved.replaceAll(wrong, right)
+          }
+        }
+
+        improved = improved.replace(/\ba ([aeiouAEIOU]\w)/gi, (match, next) => {
+          const suggestion = 'an ' + next
+          corrections.push({ orig: match, suggestion, explanation_es: "Se usa 'an' antes de sonidos vocálicos.", type: 'grammar' })
+          return suggestion
+        })
+
+        for (const [long, short] of Object.entries(contractions)) {
+          const regex = new RegExp(long.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+          improved = improved.replace(regex, (orig) => {
+            const sug = orig[0] === orig[0].toUpperCase() ? short[0].toUpperCase() + short.slice(1) : short
+            corrections.push({ orig, suggestion: sug, explanation_es: 'Contracción sugerida para un registro más coloquial.', type: 'style' })
+            return sug
+          })
+        }
+
+        improved = improved.replace(/\b(think|believe|say|feel|hope) that\b/gi, (match, verb) => {
+          corrections.push({ orig: match, suggestion: verb, explanation_es: "Eliminar 'that' hace la oración más natural.", type: 'style' })
+          return verb
+        })
+
+        improved = improved.replace(/\s+/g, ' ')
+
+        return { original: text, improved, corrections }
+      }
+
+      async function polishOllama(text) {
+        const url = ollamaUrl.value || 'http://localhost:11434'
+        const model = ollamaModel.value || 'gemma3'
+        const tone = toneSelect.value
+        const systemPrompt = SYSTEM_PROMPTS[tone] || SYSTEM_PROMPTS.neutral
+
+        try {
+          const res = await fetch(`${url}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model,
+              prompt: systemPrompt + '\n\nText to improve:\n' + text + '\n\n' + USER_PROMPT_SUFFIX,
+              stream: false,
+              options: { temperature: 0.3, num_predict: 2000 }
+            })
+          })
+
+          if (!res.ok) throw new Error(`Ollama returned ${res.status}. Is Ollama running at ${url}?`)
+
+          const data = await res.json()
+          let content = data.response.trim()
+          content = content.replace(/^```json\s*/i, '').replace(/```\s*$/g, '').trim()
+
+          try {
+            const result = JSON.parse(content)
+            result.original = text
+            return result
+          } catch {
+            return { original: text, improved: content, corrections: [], error: 'Could not parse response as JSON.' }
+          }
+        } catch (err) {
+          return { original: text, improved: text, corrections: [], error: err.message }
+        }
+      }
+
+      async function polishGemini(text) {
+        const key = geminiKey.value || localStorage.getItem('gemini_api_key') || ''
+        if (!key) return { original: text, improved: text, corrections: [], error: 'Gemini API key required.' }
+        localStorage.setItem('gemini_api_key', key)
+
+        const tone = toneSelect.value
+        const systemPrompt = SYSTEM_PROMPTS[tone] || SYSTEM_PROMPTS.neutral
+
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{ text: systemPrompt + '\n\nText to improve:\n' + text + '\n\n' + USER_PROMPT_SUFFIX }]
+              }],
+              generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+            })
+          })
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.error?.message || `Gemini returned ${res.status}`)
+          }
+
+          const data = await res.json()
+          let content = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+          content = content.replace(/^```json\s*/i, '').replace(/```\s*$/g, '').trim()
+
+          try {
+            const result = JSON.parse(content)
+            result.original = text
+            return result
+          } catch {
+            return { original: text, improved: content, corrections: [], error: 'Could not parse response as JSON.' }
+          }
+        } catch (err) {
+          return { original: text, improved: text, corrections: [], error: err.message }
+        }
+      }
+
+      // Load saved API key
+      const savedKey = localStorage.getItem('gemini_api_key')
+      if (savedKey) geminiKey.value = savedKey
+
       renderHistory()
     </script>
   </body>
